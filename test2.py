@@ -1,3 +1,4 @@
+# %%
 import os
 import torch 
 import torchvision
@@ -8,8 +9,8 @@ import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
 import torchvision.models as models
 import matplotlib.pyplot as plt
-from tensorboardX import SummaryWriter
-from torchviz import make_dot
+# from tensorboardX import SummaryWriter
+# from torchviz import make_dot
 from torch.utils.data import Dataset, DataLoader
 
 
@@ -37,21 +38,25 @@ post_transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]) 
 
-
+# %%
 # CIFAR-10 dataset
 train_dataset = torchvision.datasets.CIFAR10(root='data/cifar10/', 
                                            train=True, 
                                            transform=None,  
-                                           download=False)
+                                           download=True)
+
+indices = np.random.choice(50000, 10000)
+train_dataset = [train_dataset[index] for index in indices]
+
 transforms1 = transforms.Compose([transforms.ToTensor()])
-class RotatedSet(Dataset, angle):
-    def __init__(self, root_dir, transforms = None):
+class RotatedSet(Dataset):
+    def __init__(self, root_dir, angle=30, transforms = None):
         self.root_dir = root_dir
         self.transforms = transforms
         l, k = train_dataset[0]
         print(k)
-        self.xs = train_dataset.data
-        self.ys = train_dataset.targets
+        # self.xs = train_dataset.data
+        # self.ys = train_dataset.targets
         # self.x = []
         # self.y = []
         # for b in range(1, 6):
@@ -63,26 +68,27 @@ class RotatedSet(Dataset, angle):
         # input()
         # print("x",self.x)
         # input()
-        rot_img = l.rotate(15)
+        rot_img = l.rotate(angle)
         plt.figure()
         plt.imshow(rot_img)
         plt.savefig("dummy_name.png")
         # print("ys",self.ys)
         # print("y",self.y)
-        input()
-        self.x_tr = self.rotate_img(np.concatenate(self.xs), 90)
-        self.y_tr = self.ys
+        #self.x_tr = self.rotate_img(np.concatenate(self.xs), angle)
+        self.x_tr = [l.rotate(angle) for l,k in train_dataset]
+        # self.y_tr = self.ys
         # self.y_tr = np.concatenate(self.y)
         # print("y",self.y_tr)
         # input()
         self.length = len(self.x_tr)
         print("self.length",self.length)
-        input()
+        # input()
 
     def __getitem__(self, idx):
         img = self.x_tr[idx]
         img = self.transforms(img)
-        return img, self.y_tr[idx]
+        #return img, self.y_tr[idx]
+        return img
 
     def load_CIFAR_batch(self, filename):
         with open(filename, 'rb') as f:
@@ -108,8 +114,8 @@ class RotatedSet(Dataset, angle):
 
     def __len__(self):
         return self.length
-rot_set = RotatedSet('./data/cifar10/cifar-10-batches-py', transforms1)
-input()
+rot_set = RotatedSet('./data/cifar10/cifar-10-batches-py', 30, transforms1)
+
 
 test_dataset = torchvision.datasets.CIFAR10(root='data/cifar10/', 
                                           train=False, 
@@ -126,68 +132,86 @@ test_dataset = torchvision.datasets.CIFAR10(root='data/cifar10/',
 #                                           transform=transforms.ToTensor())
 
 # Data loader
-train_loader = torch.utils.data.DataLoader(dataset=train_dataset, 
-                                           batch_size=batch_size, 
-                                           shuffle=True)
+# train_loader = torch.utils.data.DataLoader(dataset=train_dataset, 
+#                                            batch_size=batch_size, 
+#                                            shuffle=True)
 
-test_loader = torch.utils.data.DataLoader(dataset=test_dataset, 
-                                          batch_size=batch_size, 
-                                          shuffle=False)
-model = models.resnet50().to(device)
-#model = model.to(device)
-# Loss and optimizer
-criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+# test_loader = torch.utils.data.DataLoader(dataset=test_dataset, 
+#                                           batch_size=batch_size, 
+#                                           shuffle=True)
+# model = models.resnet50().to(device)
+# #model = model.to(device)
+# # Loss and optimizer
+# criterion = nn.CrossEntropyLoss()
+# optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-# For updating learning rate
-def update_lr(optimizer, lr):    
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
+# # For updating learning rate
+# def update_lr(optimizer, lr):    
+#     for param_group in optimizer.param_groups:
+#         param_group['lr'] = lr
 
 
 
-# Train the model
-total_step = len(train_loader)
-curr_lr = learning_rate
-for epoch in range(num_epochs):
-    for i, (images, labels) in enumerate(train_loader):
-        images = images.to(device)
-        labels = labels.to(device)
+# # Train the model
+# total_step = len(train_loader)
+# curr_lr = learning_rate
+# for epoch in range(num_epochs):
+#     for i, (images, labels) in enumerate(train_loader):
+#         images = images.to(device)
+#         labels = labels.to(device)
 
-        # Forward pass
-        outputs = model(images)
-        loss = criterion(outputs, labels)
+#         # Forward pass
+#         outputs = model(images)
+#         loss = criterion(outputs, labels)
 
-        # Backward and optimize
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+#         # Backward and optimize
+#         optimizer.zero_grad()
+#         loss.backward()
+#         optimizer.step()
 
-        if (i+1) % 100 == 0:
-            print ("Epoch [{}/{}], Step [{}/{}] Loss: {:.4f}"
-                   .format(epoch+1, num_epochs, i+1, total_step, loss.item()))
+#         if (i+1) % 100 == 0:
+#             print ("Epoch [{}/{}], Step [{}/{}] Loss: {:.4f}"
+#                    .format(epoch+1, num_epochs, i+1, total_step, loss.item()))
 
-    # Decay learning rate
-    if (epoch+1) % 20 == 0:
-        curr_lr /= 3
-        update_lr(optimizer, curr_lr)
+#     # Decay learning rate
+#     if (epoch+1) % 20 == 0:
+#         curr_lr /= 3
+#         update_lr(optimizer, curr_lr)
 
-# Test the model
-model.eval()
-with torch.no_grad():
-    correct = 0
-    total = 0
-    for images, labels in test_loader:
-        images = images.to(device)
-        labels = labels.to(device)
-        outputs = model(images)
-        _, predicted = torch.max(outputs.data, 1)
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
+# # Test the model
+# model.eval()
+# with torch.no_grad():
+#     correct = 0
+#     total = 0
+#     for images, labels in test_loader:
+#         images = images.to(device)
+#         labels = labels.to(device)
+#         outputs = model(images)
+#         _, predicted = torch.max(outputs.data, 1)
+#         total += labels.size(0)
+#         correct += (predicted == labels).sum().item()
 
-    print('Accuracy of the model on the test images: {} %'.format(100 * correct / total))
+#     print('Accuracy of the model on the test images: {} %'.format(100 * correct / total))
 
-# Save the model checkpoint
-torch.save(model.state_dict(), 'resnet.ckpt')
+# # Save the model checkpoint
+# torch.save(model.state_dict(), 'resnet.ckpt')
 
-def get_rotated_item():
+# %%
+def obtain_rotated_image(angle_list):
+    lst = []
+    for angle in angle_list:
+        print(angle)
+        model = RotatedSet('./', angle, transforms1)
+        for instance in model:
+            lst.append((instance, angle))
+    return lst
+# %%
+a = obtain_rotated_image([-30, -10, 0, 10, 30])
+
+# %%
+len(a)
+# %%
+a
+# %%
+a[1][0]
+# %%
