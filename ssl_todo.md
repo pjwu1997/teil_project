@@ -1,0 +1,4 @@
+- Write a function that can automatically return a dataset of confident unlabeled
+- Clearify the PL (pseudo-labeling) termination condition
+- Implement early stop
+- Make sure the model is saved only when there is an imporvement in val acc
