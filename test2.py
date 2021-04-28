@@ -51,6 +51,8 @@ class RotatedSet(Dataset):
             self.dataset = train_dataset
         elif mode == "test":
             self.dataset = test_dataset
+        elif mode == "val":
+            self.dataset = val_dataset
         l, k = self.dataset[0]
         print(k)
         rot_img = l.rotate(angle)
@@ -78,10 +80,17 @@ train_dataset = torchvision.datasets.CIFAR10(root='data/cifar10/',
 test_dataset = torchvision.datasets.CIFAR10(root='data/cifar10/', 
                                           train=False, 
                                           transform=None)
-indices1 = np.random.choice(50000, 10000)
+
+indices = list(range(50000))
+val_idx = np.random.choice(50000, 2000)
+train_idx = list(set(indices) - set(val_idx)) 
+# indices1 = np.random.choice(50000, 10000)
+indices1 = np.random.choice(train_idx, 10000)
 indices2 = np.random.choice(10000, 2000)
+val_dataset = [train_dataset[index] for index in val_idx]
 train_dataset = [train_dataset[index] for index in indices1]
 test_dataset = [test_dataset[index] for index in indices2]
+
 # rot_set = RotatedSet('./data/cifar10/cifar-10-batches-py', 30, post_transform)
 
 
@@ -103,14 +112,15 @@ def obtain_rotated_image(angle_list, mode):
     lst = []
     for i, angle in enumerate (angle_list):
         print("angle",angle)
-        print("label",i+1)
+        print("label",i)
         model = RotatedSet(mode,'./', angle, post_transform)
         for instance in model:
-            lst.append((instance, i+1))
+            lst.append((instance, i))
     return lst
 # %%
 train_dataset_rotated = obtain_rotated_image([-30, -10, 0, 10, 30],"train")
 test_dataset_rotated = obtain_rotated_image([-30, -10, 0, 10, 30],"test")
+val_dataset_rotated = obtain_rotated_image([-30, -10, 0, 10, 30],"val")
 print(train_dataset_rotated[0])
 
 # %%
@@ -145,7 +155,7 @@ test_loader = DataLoader(dataset=test_dataset_rotated,
                           batch_size=batch_size, 
                           shuffle=False,
                           num_workers=2)
-input()
+# input()
 def imshow(img):
     img = img / 2 + 0.5     # unnormalize
     npimg = img.numpy()
@@ -160,7 +170,8 @@ images, labels = dataiter.next()
 
 # show images
 imshow(torchvision.utils.make_grid(images))
-model = models.resnet50().to(device)
+model = nn.Sequential(models.resnet50(), nn.Linear(1000,5)).to(device)
+#print(model)
 #model = model.to(device)
 # # Loss and optimizer
 criterion = nn.CrossEntropyLoss()
@@ -171,28 +182,54 @@ def update_lr(optimizer, lr):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
-
-
 # Train the model
 total_step = len(train_loader)
 curr_lr = learning_rate
 for epoch in range(num_epochs):
+    running_loss = 0.0
+    correct_num = 0
+    num = 0
     for i, (images, labels) in enumerate(train_loader):
         images = images.to(device)
         labels = labels.to(device)
 
         # Forward pass
         outputs = model(images)
+        # print(outputs.shape)
+        # print(labels.shape)
+        print(i)
         loss = criterion(outputs, labels)
-
+        output_label = torch.argmax(outputs, dim=1)
+        correct_num += (output_label == labels).float().sum()
+        num += len(labels)
+        running_loss += loss.item()
         # Backward and optimize
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         if (i+1) % 100 == 0:
-            print ("Epoch [{}/{}], Step [{}/{}] Loss: {:.4f}"
-                   .format(epoch+1, num_epochs, i+1, total_step, loss.item()))
+            print ("Epoch [{}/{}], Step [{}/{}] Loss: {:.4f} Accuracy: {:.4f}"
+                   .format(epoch+1, num_epochs, i+1, total_step, running_loss / 100, correct_num / num))
+            running_loss = 0.0
+            correct_num = 0
+            num = 0
+    val_running_loss = 0
+    correct_num = 0
+    num = 0
+    for j, (images, labels) in enumerate(val_loader):
+        images = images.to(device)
+        labels = labels.to(device)
+
+        # Forward pass
+        outputs = model(images)
+        loss = criterion(outputs, labels)
+        val_running_loss += loss.item()
+        output_label = torch.argmax(outputs, dim=1)
+        correct_num += (output_label == labels).float().sum()
+        num += len(outputs)
+    print ("Epoch [{}/{}], Loss: {:.4f} Accuracy: {:.4f}"
+                   .format(epoch+1, num_epochs,  val_running_loss / len(val_loader), correct_num / num))
 
     # Decay learning rate
     if (epoch+1) % 20 == 0:
@@ -216,3 +253,7 @@ with torch.no_grad():
 
 # Save the model checkpoint
 torch.save(model.state_dict(), 'resnet.ckpt')
+
+# %%
+
+# %%
