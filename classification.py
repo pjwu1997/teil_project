@@ -132,3 +132,7 @@ for epoch in range(2):  # loop over the dataset multiple times
         
          
 print('Finished Training')# %%
+
+# %%
+
+# %%
